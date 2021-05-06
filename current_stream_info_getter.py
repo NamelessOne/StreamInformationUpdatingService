@@ -1,7 +1,26 @@
+# -*- coding: utf-8 -*-
+
 import urllib.request
 import html.parser
 import requests
+import functools
+import schedule
+import time
 
+# декоратор для ловли исключений
+def catch_exceptions(cancel_on_failure=False):
+    def catch_exceptions_decorator(job_func):
+        @functools.wraps(job_func)
+        def wrapper(*args, **kwargs):
+            try:
+                return job_func(*args, **kwargs)
+            except:
+                import traceback
+                print(traceback.format_exc())
+                if cancel_on_failure:
+                    return schedule.CancelJob
+        return wrapper
+    return catch_exceptions_decorator
 
 class ImageParser(html.parser.HTMLParser):
     def __init__(self):
@@ -41,6 +60,7 @@ def send(img, about):
     requests.post('http://192.168.0.104:9000/CurrentStreamInformation', json={'imageURL': img, 'about': about})
 
 
+@catch_exceptions(cancel_on_failure=False)
 def get_stream_info():
     # Image URL
     image_response = urllib.request.urlopen('http://fantasyradio.ru/player.php')
@@ -56,4 +76,8 @@ def get_stream_info():
     send(image_parser.img, about_parser.about)
 
 
-get_stream_info()
+schedule.every(1).minutes.do(get_stream_info)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)
